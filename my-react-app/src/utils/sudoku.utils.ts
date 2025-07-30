@@ -169,25 +169,26 @@ export class SudokuValidator {
   }
 
   private getCellColor(rowIndex: number, colIndex: number): string | undefined {
-    const cellErrors = this.errors.filter(e => e.row === rowIndex && e.col === colIndex);
+    const cellIsValidLine = this.getValidLinesCells().some(
+      ([r, c]) => r === rowIndex && c === colIndex
+    );
+    if (cellIsValidLine) return ValidColor.Line;
 
     const cellIsValidBlock = this.getValidBlocksCells().some(
       ([r, c]) => r === rowIndex && c === colIndex
     );
-    const cellIsValidLine = this.getValidLinesCells().some(
-      ([r, c]) => r === rowIndex && c === colIndex
-    );
-    const blockEColor = cellErrors.find(e => e.color === ErrorColor.Block)?.color;
-    const lineEColor = cellErrors.find(e => e.color === ErrorColor.LineCell)?.color;
-    const blockCellEColor = cellErrors.find(e => e.color === ErrorColor.BlockCell)?.color;
+    if (cellIsValidBlock) return ValidColor.Block;
 
-    const cellColor = cellIsValidLine
-      ? ValidColor.Line
-      : cellIsValidBlock
-        ? ValidColor.Block
-        : (blockCellEColor ?? lineEColor ?? blockEColor);
+    const cellErrors = this.errors.filter(e => e.row === rowIndex && e.col === colIndex);
 
-    return cellColor;
+    const blockCellError = cellErrors.some(e => e.color === ErrorColor.BlockCell);
+    if (blockCellError) return ErrorColor.BlockCell;
+
+    const lineError = cellErrors.find(e => e.color === ErrorColor.LineCell);
+    if (lineError) return ErrorColor.LineCell;
+
+    const blockError = cellErrors.some(e => e.color === ErrorColor.Block);
+    return blockError ? ErrorColor.Block : undefined;
   }
 
   // Returns cells from blocks that are finished and have no errors
