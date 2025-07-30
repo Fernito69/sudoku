@@ -29,7 +29,8 @@ export enum ErrorColor {
 }
 
 export enum ValidColor {
-  Valid = 'bg-green-200',
+  Block = 'bg-green-200',
+  Line = 'bg-green-300',
 }
 
 export interface Error {
@@ -42,6 +43,11 @@ export type Cell = [number, number];
 
 export interface Validation {
   errors: Error[];
-  validBlocksCells: Cell[];
   isFilled: boolean;
+  getCellColor: (rowIndex: number, colIndex: number) => string | undefined;
+}
+
+export interface DbSudoku {
+  key: string;
+  sudoku: Sudoku;
 }

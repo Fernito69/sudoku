@@ -5,6 +5,7 @@ import {
   type SudokuRow,
   type Validation,
   type Cell,
+  ValidColor,
 } from '@/model/sudoku.model';
 
 // Defaults
@@ -147,12 +148,13 @@ export class SudokuValidator {
   }
 
   public isFilled(): boolean {
-    return this.sudoku.every(row => row.every(v => v !== undefined));
+    return this.sudoku.every(row => row.every(v => v != null));
   }
 
   public validate(): Validation {
     this.errors = [];
 
+    // Populate the errors array
     for (const [index, num] of Array.from(this.targetSet).entries()) {
       this.validateBlock(num);
       this.validateRow(index);
@@ -161,9 +163,31 @@ export class SudokuValidator {
 
     return {
       errors: this.errors,
-      validBlocksCells: this.getValidBlocksCells(),
       isFilled: this.isFilled(),
+      getCellColor: this.getCellColor.bind(this),
     };
+  }
+
+  private getCellColor(rowIndex: number, colIndex: number): string | undefined {
+    const cellErrors = this.errors.filter(e => e.row === rowIndex && e.col === colIndex);
+
+    const cellIsValidBlock = this.getValidBlocksCells().some(
+      ([r, c]) => r === rowIndex && c === colIndex
+    );
+    const cellIsValidLine = this.getValidLinesCells().some(
+      ([r, c]) => r === rowIndex && c === colIndex
+    );
+    const blockEColor = cellErrors.find(e => e.color === ErrorColor.Block)?.color;
+    const lineEColor = cellErrors.find(e => e.color === ErrorColor.LineCell)?.color;
+    const blockCellEColor = cellErrors.find(e => e.color === ErrorColor.BlockCell)?.color;
+
+    const cellColor = cellIsValidLine
+      ? ValidColor.Line
+      : cellIsValidBlock
+        ? ValidColor.Block
+        : (blockCellEColor ?? lineEColor ?? blockEColor);
+
+    return cellColor;
   }
 
   // Returns cells from blocks that are finished and have no errors
@@ -171,12 +195,10 @@ export class SudokuValidator {
     const validCells: Cell[] = [];
 
     Object.values(this.blockIndices).forEach(indices => {
-      const blockIsFilled: boolean = indices.every(
-        ([row, col]) => this.sudoku[row][col] !== undefined
-      );
+      const blockIsFilled: boolean = indices.every(([row, col]) => this.sudoku[row][col] != null);
 
       const blockHasErrors: boolean = indices.some(([row, col]) =>
-        this.errors.some((e) => e.row === row && e.col === col)
+        this.errors.some(e => e.row === row && e.col === col)
       );
 
       if (blockIsFilled && !blockHasErrors) {
@@ -187,9 +209,33 @@ export class SudokuValidator {
     return validCells;
   }
 
+  private getValidLinesCells(): Cell[] {
+    const validCells: Cell[] = [];
+
+    Array.from(this.targetSet).forEach((_, index) => {
+      // check cols
+      const colIsFilled = this.sudoku.every(row => row[index] != null);
+      const colHasErrors = this.errors.some(e => e.col === index);
+
+      if (colIsFilled && !colHasErrors) {
+        validCells.push(...(Array.from({ length: 9 }, (_, row) => [row, index]) as Cell[]));
+      }
+
+      // check rows
+      const rowIsFilled = this.sudoku[index].every(val => val != null);
+      const rowHasErrors = this.errors.some(e => e.row === index);
+
+      if (rowIsFilled && !rowHasErrors) {
+        validCells.push(...(Array.from({ length: 9 }, (_, col) => [index, col]) as Cell[]));
+      }
+    });
+
+    return validCells;
+  }
+
   private validateRow(row: number) {
     const count = this.sudoku[row].reduce(
-      (acc, v) => (v === undefined ? acc : { ...acc, [v]: acc[v] ? acc[v] + 1 : 1 }),
+      (acc, v) => (v == null ? acc : { ...acc, [v]: acc[v] ? acc[v] + 1 : 1 }),
       {} as Record<number, number>
     );
     const repeatedValues = Object.entries(count)
@@ -199,7 +245,7 @@ export class SudokuValidator {
     if (repeatedValues.length > 0) {
       this.sudoku[row].forEach((_, col) => {
         const cellValue = this.sudoku[row][col];
-        if (cellValue === undefined) return;
+        if (cellValue == null) return;
         if (repeatedValues.includes(cellValue)) {
           this.errors.push({ row, col, color: ErrorColor.LineCell });
         }
@@ -211,7 +257,7 @@ export class SudokuValidator {
     const count = this.sudoku.reduce(
       (acc, row) => {
         const cellValue = row[col];
-        if (cellValue === undefined) return acc;
+        if (cellValue == null) return acc;
         return { ...acc, [cellValue]: acc[cellValue] ? acc[cellValue] + 1 : 1 };
       },
       {} as Record<number, number>
@@ -224,7 +270,7 @@ export class SudokuValidator {
     if (repeatedValues.length > 0) {
       this.sudoku.forEach((row, rowIndex) => {
         const cellValue = row[col];
-        if (cellValue === undefined) return;
+        if (cellValue == null) return;
         if (repeatedValues.includes(cellValue)) {
           this.errors.push({ row: rowIndex, col, color: ErrorColor.LineCell });
         }
@@ -237,7 +283,7 @@ export class SudokuValidator {
       ([row, col]) => this.sudoku[row][col]
     );
     const count = blockValues.reduce(
-      (acc, v) => (v === undefined ? acc : { ...acc, [v]: acc[v] ? acc[v] + 1 : 1 }),
+      (acc, v) => (v == null ? acc : { ...acc, [v]: acc[v] ? acc[v] + 1 : 1 }),
       {} as Record<number, number>
     );
 
@@ -254,7 +300,7 @@ export class SudokuValidator {
       // Color repeated cells
       this.blockIndices[block].forEach(([row, col]) => {
         const cellValue = this.sudoku[row][col];
-        if (cellValue === undefined) return;
+        if (cellValue == null) return;
         if (repeatedValues.includes(cellValue)) {
           this.errors.push({ row, col, color: ErrorColor.BlockCell });
         }

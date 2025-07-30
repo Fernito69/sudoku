@@ -15,6 +15,7 @@ interface Props {
   cellColor?: string;
   registerRef?: (r: number, c: number, el: HTMLInputElement | null) => void;
   focusCell?: (r: number, c: number) => void;
+  isDisabled: boolean;
 }
 
 export function SudokuInput({
@@ -25,10 +26,13 @@ export function SudokuInput({
   cellColor,
   registerRef,
   focusCell,
+  isDisabled,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isDisabled) return;
+
     const raw = e.currentTarget.value;
     const nextVal = raw === '' ? undefined : (clamp(parseInt(raw, 10) || 0, 1, 9) as SudokuValue);
 
@@ -85,6 +89,7 @@ export function SudokuInput({
 
   const className = clsx(
     cellColor,
+    isDisabled ? 'text-black font-bold' : 'text-gray-500',
     'w-12 h-12 border-solid',
     'transition-colors',
     'focus-within:bg-gray-200',

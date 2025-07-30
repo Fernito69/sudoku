@@ -1,10 +1,12 @@
 import { useMemo, useRef, useState } from 'react';
+import { SudokuControls } from './components/SudokuControls/SudokuControls';
 import { SudokuInput } from './components/SudokuInput/SudokuInput';
-import { ErrorColor, ValidColor, type Sudoku } from './model/sudoku.model';
-import { SudokuValidator, BASE_SUDOKU } from './utils/sudoku.utils';
+import { type Sudoku } from './model/sudoku.model';
+import { BASE_SUDOKU, SudokuValidator } from './utils/sudoku.utils';
 
 export default function App() {
   const [sudoku, setSudoku] = useState<Sudoku>(BASE_SUDOKU);
+  const [initialSudoku, setInitialSudoku] = useState<Sudoku>(BASE_SUDOKU);
 
   const inputRefs = useRef<Array<Array<HTMLInputElement | null>>>(
     Array.from({ length: 9 }, () => Array(9).fill(null))
@@ -20,10 +22,7 @@ export default function App() {
     el?.select();
   };
 
-  const { errors, validBlocksCells } = useMemo(
-    () => new SudokuValidator(sudoku).validate(),
-    [sudoku]
-  );
+  const { getCellColor } = useMemo(() => new SudokuValidator(sudoku).validate(), [sudoku]);
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -32,20 +31,7 @@ export default function App() {
           return (
             <div key={rowIndex} className="flex flex-row">
               {row.map((value, colIndex) => {
-                const cellErrors = errors.filter(e => e.row === rowIndex && e.col === colIndex);
-
-                const cellIsValid = validBlocksCells.some(
-                  ([r, c]) => r === rowIndex && c === colIndex
-                );
-                const blockEColor = cellErrors.find(e => e.color === ErrorColor.Block)?.color;
-                const lineEColor = cellErrors.find(e => e.color === ErrorColor.LineCell)?.color;
-                const blockCellEColor = cellErrors.find(
-                  e => e.color === ErrorColor.BlockCell
-                )?.color;
-
-                const cellColor = cellIsValid
-                  ? ValidColor.Valid
-                  : (blockCellEColor ?? lineEColor ?? blockEColor);
+                const isDisabled = initialSudoku[rowIndex][colIndex] != null;
 
                 return (
                   <SudokuInput
@@ -53,8 +39,9 @@ export default function App() {
                     row={rowIndex}
                     col={colIndex}
                     value={value}
+                    isDisabled={isDisabled}
                     setSudoku={setSudoku}
-                    cellColor={cellColor}
+                    cellColor={getCellColor(rowIndex, colIndex)}
                     registerRef={registerRef}
                     focusCell={focusCell}
                   />
@@ -64,6 +51,11 @@ export default function App() {
           );
         })}
       </div>
+      <SudokuControls
+        setSudoku={setSudoku}
+        sudoku={sudoku}
+        setInitialSudoku={setInitialSudoku}
+      />
     </div>
   );
 }
