@@ -3,7 +3,7 @@ import {
   type Error,
   type Sudoku,
   type SudokuRow,
-  type Validation,
+  type SudokuValidation,
   type Cell,
   ValidColor,
 } from '@/model/sudoku.model';
@@ -33,7 +33,7 @@ export const BASE_SUDOKU: Sudoku = [
   BASE_ROW,
 ];
 
-// Block
+// Indices that represent each block in the whole 81x81 grid
 export const BLOCK_INDICES: Record<number, [number, number][]> = {
   1: [
     [0, 0],
@@ -137,35 +137,47 @@ export const BLOCK_INDICES: Record<number, [number, number][]> = {
 };
 
 export class SudokuValidator {
-  private sudoku: Sudoku;
-  private targetSet: Set<number> = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  private readonly sudoku: Sudoku;
+  private readonly targetSet: number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  private readonly blockIndices: Record<number, [number, number][]>;
   private errors: Error[] = [];
-  private blockIndices: Record<number, [number, number][]>;
 
-  constructor(sudoku: Sudoku, blockIndices: Record<number, [number, number][]> = BLOCK_INDICES) {
+  constructor(
+    sudoku: Sudoku,
+    blockIndices: Record<number, [number, number][]> = BLOCK_INDICES
+  ) {
     this.sudoku = sudoku;
     this.blockIndices = blockIndices;
   }
 
-  public isFilled(): boolean {
-    return this.sudoku.every(row => row.every(v => v != null));
+  public validate(): SudokuValidation {
+    this.errors = [];
+
+    return {
+      errors: this.computeErrors(),
+      isFinished: this.isFinished(),
+      getCellColor: this.getCellColor.bind(this),
+    };
   }
 
-  public validate(): Validation {
+  public isFinished(): boolean {
+    return (
+      this.sudoku.every(row => row.every(v => v != null)) &&
+      this.errors.length === 0
+    );
+  }
+
+  public computeErrors(): Error[] {
     this.errors = [];
 
     // Populate the errors array
-    for (const [index, num] of Array.from(this.targetSet).entries()) {
+    for (const [index, num] of this.targetSet.entries()) {
       this.validateBlock(num);
       this.validateRow(index);
       this.validateCol(index);
     }
 
-    return {
-      errors: this.errors,
-      isFilled: this.isFilled(),
-      getCellColor: this.getCellColor.bind(this),
-    };
+    return this.errors;
   }
 
   private getCellColor(rowIndex: number, colIndex: number): string | undefined {
@@ -179,9 +191,13 @@ export class SudokuValidator {
     );
     if (cellIsValidBlock) return ValidColor.Block;
 
-    const cellErrors = this.errors.filter(e => e.row === rowIndex && e.col === colIndex);
+    const cellErrors = this.errors.filter(
+      e => e.row === rowIndex && e.col === colIndex
+    );
 
-    const blockCellError = cellErrors.some(e => e.color === ErrorColor.BlockCell);
+    const blockCellError = cellErrors.some(
+      e => e.color === ErrorColor.BlockCell
+    );
     if (blockCellError) return ErrorColor.BlockCell;
 
     const lineError = cellErrors.find(e => e.color === ErrorColor.LineCell);
@@ -196,7 +212,9 @@ export class SudokuValidator {
     const validCells: Cell[] = [];
 
     Object.values(this.blockIndices).forEach(indices => {
-      const blockIsFilled: boolean = indices.every(([row, col]) => this.sudoku[row][col] != null);
+      const blockIsFilled: boolean = indices.every(
+        ([row, col]) => this.sudoku[row][col] != null
+      );
 
       const blockHasErrors: boolean = indices.some(([row, col]) =>
         this.errors.some(e => e.row === row && e.col === col)
@@ -213,13 +231,15 @@ export class SudokuValidator {
   private getValidLinesCells(): Cell[] {
     const validCells: Cell[] = [];
 
-    Array.from(this.targetSet).forEach((_, index) => {
+    this.targetSet.forEach((_, index) => {
       // check cols
       const colIsFilled = this.sudoku.every(row => row[index] != null);
       const colHasErrors = this.errors.some(e => e.col === index);
 
       if (colIsFilled && !colHasErrors) {
-        validCells.push(...(Array.from({ length: 9 }, (_, row) => [row, index]) as Cell[]));
+        validCells.push(
+          ...(this.targetSet.map((_, row) => [row, index]) as Cell[])
+        );
       }
 
       // check rows
@@ -227,7 +247,9 @@ export class SudokuValidator {
       const rowHasErrors = this.errors.some(e => e.row === index);
 
       if (rowIsFilled && !rowHasErrors) {
-        validCells.push(...(Array.from({ length: 9 }, (_, col) => [index, col]) as Cell[]));
+        validCells.push(
+          ...(this.targetSet.map((_, col) => [index, col]) as Cell[])
+        );
       }
     });
 

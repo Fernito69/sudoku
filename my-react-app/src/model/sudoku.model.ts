@@ -41,9 +41,9 @@ export interface Error {
 
 export type Cell = [number, number];
 
-export interface Validation {
+export interface SudokuValidation {
   errors: Error[];
-  isFilled: boolean;
+  isFinished: boolean;
   getCellColor: (rowIndex: number, colIndex: number) => string | undefined;
 }
 

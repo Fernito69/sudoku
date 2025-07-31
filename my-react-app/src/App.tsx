@@ -22,7 +22,10 @@ export default function App() {
     el?.select();
   };
 
-  const { getCellColor } = useMemo(() => new SudokuValidator(sudoku).validate(), [sudoku]);
+  const { getCellColor } = useMemo(
+    () => new SudokuValidator(sudoku).validate(),
+    [sudoku]
+  );
 
   return (
     <div className="min-h-screen bg-background p-8">

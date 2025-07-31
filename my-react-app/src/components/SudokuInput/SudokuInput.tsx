@@ -34,7 +34,10 @@ export function SudokuInput({
     if (isDisabled) return;
 
     const raw = e.currentTarget.value;
-    const nextVal = raw === '' ? undefined : (clamp(parseInt(raw, 10) || 0, 1, 9) as SudokuValue);
+    const nextVal =
+      raw === ''
+        ? undefined
+        : (clamp(parseInt(raw, 10) || 0, 1, 9) as SudokuValue);
 
     setSudoku(prev => {
       const next = prev.map(r => r.slice()) as Sudoku;
@@ -93,8 +96,12 @@ export function SudokuInput({
     'w-12 h-12 border-solid',
     'transition-colors',
     'focus-within:bg-gray-200',
-    row % 3 === 0 ? 'border-t-4 border-t-gray-500' : 'border-t border-t-gray-300',
-    col % 3 === 0 ? 'border-l-4 border-l-gray-500' : 'border-l border-l-gray-300',
+    row % 3 === 0
+      ? 'border-t-4 border-t-gray-500'
+      : 'border-t border-t-gray-300',
+    col % 3 === 0
+      ? 'border-l-4 border-l-gray-500'
+      : 'border-l border-l-gray-300',
     row === 8 ? 'border-b-4 border-b-gray-500' : 'border-b border-b-gray-300',
     col === 8 ? 'border-r-4 border-r-gray-500' : 'border-r border-r-gray-300'
   );
