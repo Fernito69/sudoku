@@ -1,16 +1,17 @@
 import type { Sudoku, SudokuValue } from '@/model/sudoku.model';
+import { BASE_ROW } from '@/utils/sudoku.utils';
 import { clsx } from 'clsx';
 import { clamp } from 'lodash';
 import { useRef } from 'react';
 
-const GRID = 9;
+const GRID = BASE_ROW.length;
 // Set to true if you want wrap-around movement; false to stop at edges.
 const WRAP = true;
 
 interface Props {
   row: number;
   col: number;
-  value: SudokuValue;
+  value: SudokuValue | undefined;
   setSudoku: React.Dispatch<React.SetStateAction<Sudoku>>;
   cellColor?: string;
   registerRef?: (r: number, c: number, el: HTMLInputElement | null) => void;
@@ -51,7 +52,7 @@ export function SudokuInput({
 
   const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = e => {
     // Let modifiers do their normal thing.
-    if (e.altKey || e.metaKey || e.ctrlKey) return;
+    if (e.altKey || e.metaKey || e.ctrlKey || (isDisabled && e.key === 'Backspace')) return;
 
     let dr = 0,
       dc = 0;

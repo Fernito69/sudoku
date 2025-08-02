@@ -1,6 +1,6 @@
 import { deleteSudoku, getSudokus, saveSudoku } from '@/data/sudoku.service';
 import type { DbSudoku, Sudoku } from '@/model/sudoku.model';
-import { BASE_SUDOKU } from '@/utils/sudoku.utils';
+import { BASE_SUDOKU, SudokuSolver } from '@/utils/sudoku.utils';
 import { Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Select from 'react-select';
@@ -58,11 +58,18 @@ export function SudokuControls({ setSudoku, sudoku, setInitialSudoku }: Props) {
     setSelectedOption(selectedOption);
   };
 
+  const handleSolve = () => {
+    setSudoku(new SudokuSolver(sudoku).solve());
+  };
+
   const options = sudokuList.map(s => ({ value: s.sudoku, label: s.key }));
 
   return (
     <div className="flex flex-row items-center mt-2 py-2 px-2 bg-gray-300 gap-2 border border-gray-300 rounded w-fit">
       <Button onClick={handleReset}>Reset</Button>
+      <Button className="bg-green-600" onClick={handleSolve}>
+        Solve
+      </Button>
       <Select
         className="w-64"
         options={options}

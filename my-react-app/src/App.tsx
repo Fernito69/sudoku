@@ -22,7 +22,7 @@ export default function App() {
     el?.select();
   };
 
-  const { getCellColor } = useMemo(
+  const { getCellClassname } = useMemo(
     () => new SudokuValidator(sudoku).validate(),
     [sudoku]
   );
@@ -44,7 +44,7 @@ export default function App() {
                     value={value}
                     isDisabled={isDisabled}
                     setSudoku={setSudoku}
-                    cellColor={getCellColor(rowIndex, colIndex)}
+                    cellColor={getCellClassname(rowIndex, colIndex)}
                     registerRef={registerRef}
                     focusCell={focusCell}
                   />

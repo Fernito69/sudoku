@@ -1,11 +1,17 @@
 import {
-  ErrorColor,
+  ErrorClassname,
+  ValidClassname,
+  type CandidateCells,
+  type Cell,
+  type CellCandidates,
+  type CellKey,
   type Error,
   type Sudoku,
+  type SudokuCandidatesDict,
   type SudokuRow,
   type SudokuValidation,
-  type Cell,
-  ValidColor,
+  type SudokuValue,
+  type CellCandidate,
 } from '@/model/sudoku.model';
 
 // Defaults
@@ -34,7 +40,7 @@ export const BASE_SUDOKU: Sudoku = [
 ];
 
 // Indices that represent each block in the whole 81x81 grid
-export const BLOCK_INDICES: Record<number, [number, number][]> = {
+export const BLOCK_INDICES: Record<number, Cell[]> = {
   1: [
     [0, 0],
     [0, 1],
@@ -136,18 +142,16 @@ export const BLOCK_INDICES: Record<number, [number, number][]> = {
   ],
 };
 
+/***************************************************/
 export class SudokuValidator {
   private readonly sudoku: Sudoku;
-  private readonly targetSet: number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-  private readonly blockIndices: Record<number, [number, number][]>;
+  private readonly targetSet: SudokuValue[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  private readonly blockIndices: Record<number, Cell[]>;
   private errors: Error[] = [];
 
-  constructor(
-    sudoku: Sudoku,
-    blockIndices: Record<number, [number, number][]> = BLOCK_INDICES
-  ) {
-    this.sudoku = sudoku;
-    this.blockIndices = blockIndices;
+  constructor(sudoku: Sudoku) {
+    this.sudoku = JSON.parse(JSON.stringify(sudoku));
+    this.blockIndices = BLOCK_INDICES;
   }
 
   public validate(): SudokuValidation {
@@ -156,11 +160,11 @@ export class SudokuValidator {
     return {
       errors: this.computeErrors(),
       isFinished: this.isFinished(),
-      getCellColor: this.getCellColor.bind(this),
+      getCellClassname: this.getCellClassname.bind(this),
     };
   }
 
-  public isFinished(): boolean {
+  private isFinished(): boolean {
     return (
       this.sudoku.every(row => row.every(v => v != null)) &&
       this.errors.length === 0
@@ -180,31 +184,38 @@ export class SudokuValidator {
     return this.errors;
   }
 
-  private getCellColor(rowIndex: number, colIndex: number): string | undefined {
+  private getCellClassname(
+    rowIndex: number,
+    colIndex: number
+  ): string | undefined {
     const cellIsValidLine = this.getValidLinesCells().some(
       ([r, c]) => r === rowIndex && c === colIndex
     );
-    if (cellIsValidLine) return ValidColor.Line;
+    if (cellIsValidLine) return ValidClassname.Line;
 
     const cellIsValidBlock = this.getValidBlocksCells().some(
       ([r, c]) => r === rowIndex && c === colIndex
     );
-    if (cellIsValidBlock) return ValidColor.Block;
+    if (cellIsValidBlock) return ValidClassname.Block;
 
     const cellErrors = this.errors.filter(
       e => e.row === rowIndex && e.col === colIndex
     );
 
     const blockCellError = cellErrors.some(
-      e => e.color === ErrorColor.BlockCell
+      e => e.className === ErrorClassname.BlockCell
     );
-    if (blockCellError) return ErrorColor.BlockCell;
+    if (blockCellError) return ErrorClassname.BlockCell;
 
-    const lineError = cellErrors.find(e => e.color === ErrorColor.LineCell);
-    if (lineError) return ErrorColor.LineCell;
+    const lineError = cellErrors.find(
+      e => e.className === ErrorClassname.LineCell
+    );
+    if (lineError) return ErrorClassname.LineCell;
 
-    const blockError = cellErrors.some(e => e.color === ErrorColor.Block);
-    return blockError ? ErrorColor.Block : undefined;
+    const blockError = cellErrors.some(
+      e => e.className === ErrorClassname.Block
+    );
+    return blockError ? ErrorClassname.Block : undefined;
   }
 
   // Returns cells from blocks that are finished and have no errors
@@ -270,7 +281,7 @@ export class SudokuValidator {
         const cellValue = this.sudoku[row][col];
         if (cellValue == null) return;
         if (repeatedValues.includes(cellValue)) {
-          this.errors.push({ row, col, color: ErrorColor.LineCell });
+          this.errors.push({ row, col, className: ErrorClassname.LineCell });
         }
       });
     }
@@ -295,39 +306,347 @@ export class SudokuValidator {
         const cellValue = row[col];
         if (cellValue == null) return;
         if (repeatedValues.includes(cellValue)) {
-          this.errors.push({ row: rowIndex, col, color: ErrorColor.LineCell });
+          this.errors.push({
+            row: rowIndex,
+            col,
+            className: ErrorClassname.LineCell,
+          });
         }
       });
     }
   }
 
   private validateBlock(block: number) {
-    const blockValues = Object.values(BLOCK_INDICES[block]).map(
-      ([row, col]) => this.sudoku[row][col]
-    );
-    const count = blockValues.reduce(
-      (acc, v) => (v == null ? acc : { ...acc, [v]: acc[v] ? acc[v] + 1 : 1 }),
-      {} as Record<number, number>
-    );
+    try {
+      const blockValues = Object.values(BLOCK_INDICES[block]).map(
+        ([row, col]) => this.sudoku[row][col]
+      );
+      const count = blockValues.reduce(
+        (acc, v) =>
+          v == null ? acc : { ...acc, [v]: acc[v] ? acc[v] + 1 : 1 },
+        {} as Record<number, number>
+      );
 
-    const repeatedValues = Object.entries(count)
-      .filter(([_, count]) => count > 1)
-      .map(([num]) => Number(num));
+      const repeatedValues = Object.entries(count)
+        .filter(([_, count]) => count > 1)
+        .map(([num]) => Number(num));
 
-    if (repeatedValues.length > 0) {
-      // Color block cells
-      this.blockIndices[block].forEach(([row, col]) => {
-        this.errors.push({ row, col, color: ErrorColor.Block });
-      });
+      if (repeatedValues.length > 0) {
+        // Color block cells
+        this.blockIndices[block].forEach(([row, col]) => {
+          this.errors.push({ row, col, className: ErrorClassname.Block });
+        });
 
-      // Color repeated cells
-      this.blockIndices[block].forEach(([row, col]) => {
-        const cellValue = this.sudoku[row][col];
-        if (cellValue == null) return;
-        if (repeatedValues.includes(cellValue)) {
-          this.errors.push({ row, col, color: ErrorColor.BlockCell });
-        }
-      });
+        // Color repeated cells
+        this.blockIndices[block].forEach(([row, col]) => {
+          const cellValue = this.sudoku[row][col];
+          if (cellValue == null) return;
+          if (repeatedValues.includes(cellValue)) {
+            this.errors.push({ row, col, className: ErrorClassname.BlockCell });
+          }
+        });
+      }
+    } catch (error) {
+      throw new Error('SUDOKU:' + JSON.stringify(this.sudoku));
     }
   }
 }
+
+/***************************************************/
+export class SudokuSolver {
+  private readonly initialSudoku: Sudoku;
+  private readonly targetSet: SudokuValue[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  private readonly blockIndices: Record<number, Cell[]> = BLOCK_INDICES;
+  private readonly logging: boolean = true;
+
+  private partiallySolvedSudoku: Sudoku | null = null;
+  private bestAttempt: Sudoku | null = null;
+  private testedCandidates: CellCandidate[] = [];
+
+  constructor(sudoku: Sudoku) {
+    this.initialSudoku = this.cloneDeep(sudoku);
+  }
+
+  public solve(
+    initialSudoku: Sudoku = this.initialSudoku,
+    currEmptyCells: number = this.computeEmptyCells(initialSudoku),
+    depth: number = 0
+  ): Sudoku {
+    this.logging &&
+      console.log('iteration:', ++depth, 'Curr empty cells:', currEmptyCells);
+
+    let sudoku = this.cloneDeep(initialSudoku);
+
+    // Compute all candidates per block, row and column and
+    // assign all single candidates found
+    this.targetSet.forEach((blockNum, index) => {
+      [
+        this.computeBlockCandidates(sudoku, blockNum),
+        this.computeRowCandidates(sudoku, index),
+        this.computeColCandidates(sudoku, index),
+      ].forEach(candidates => {
+        this.assignSingleCandidates(sudoku, candidates);
+      });
+    });
+
+    // If the Sudoku is solved, return it
+    if (new SudokuValidator(sudoku).validate().isFinished) {
+      this.logging && console.log('Solved!');
+      return sudoku;
+    }
+
+    // If there are still empty cells, solve recursively until we can't
+    // find any more single candidates
+    const newEmptyCells = this.computeEmptyCells(sudoku);
+    if (newEmptyCells < currEmptyCells) {
+      return this.solve(sudoku, newEmptyCells, depth);
+    }
+
+    // Save a state of the sudoku with all single candidates assigned
+    if (this.partiallySolvedSudoku == null) {
+      this.partiallySolvedSudoku = this.cloneDeep(sudoku);
+    }
+
+    // Begin trying candidates
+    while (true) {
+      const cellCandidates: CellCandidate[] = this.compileCandidatesList(
+        this.partiallySolvedSudoku
+      );
+      sudoku = this.cloneDeep(this.partiallySolvedSudoku);
+
+      const { candidate, cell } =
+        cellCandidates.find(
+          c =>
+            !this.testedCandidates.some(
+              t =>
+                t.cell[0] === c.cell[0] &&
+                t.cell[1] === c.cell[1] &&
+                t.candidate === c.candidate
+            )
+        ) ?? {};
+
+      if (!candidate || !cell) return this.bestAttempt || sudoku;
+
+      sudoku[cell[0]][cell[1]] = candidate;
+      this.testedCandidates.push({ cell, candidate });
+
+      const newAttempt = this.solve(
+        sudoku,
+        this.computeEmptyCells(sudoku),
+        depth
+      );
+
+      if (
+        new SudokuValidator(newAttempt).validate().errors.length === 0 &&
+        (this.bestAttempt == null ||
+          this.computeEmptyCells(newAttempt) <
+            this.computeEmptyCells(this.bestAttempt))
+      ) {
+        this.bestAttempt = this.cloneDeep(newAttempt);
+      }
+    }
+  }
+
+  private cloneDeep(sudoku: Sudoku): Sudoku {
+    return JSON.parse(JSON.stringify(sudoku)) as Sudoku;
+  }
+
+  private computeBlockCandidates(
+    sudoku: Sudoku,
+    blockNum: number
+  ): CellCandidates[] {
+    const cellCandidates: SudokuCandidatesDict =
+      this.compileCandidatesDict(sudoku);
+
+    return this.blockIndices[blockNum]
+      .map(([row, col]) => ({
+        candidates: cellCandidates[this.stringifyKey(row, col)],
+        cell: [row, col] satisfies Cell,
+      }))
+      .filter(v => v.candidates != null);
+  }
+
+  private computeRowCandidates(sudoku: Sudoku, row: number): CellCandidates[] {
+    const cellCandidates: SudokuCandidatesDict =
+      this.compileCandidatesDict(sudoku);
+
+    return this.targetSet
+      .map((_, col) => ({
+        candidates: cellCandidates[this.stringifyKey(row, col)],
+        cell: [row, col] satisfies Cell,
+      }))
+      .filter(v => v.candidates != null);
+  }
+
+  private computeColCandidates(sudoku: Sudoku, col: number): CellCandidates[] {
+    const cellCandidates: SudokuCandidatesDict =
+      this.compileCandidatesDict(sudoku);
+
+    return this.targetSet
+      .map((_, row) => ({
+        candidates: cellCandidates[this.stringifyKey(row, col)],
+        cell: [row, col] satisfies Cell,
+      }))
+      .filter(v => v.candidates != null);
+  }
+
+  // Returns all the cells for which each candidate
+  // is present in its list of candidates
+  private getCandidateCells(
+    cellCandidates: CellCandidates[]
+  ): CandidateCells[] {
+    return Object.entries(
+      cellCandidates.reduce(
+        (acc, { candidates, cell }) => {
+          candidates.forEach(candidate => {
+            acc[candidate] = acc[candidate] ?? [];
+            acc[candidate].push(cell);
+          });
+          return acc;
+        },
+        {} as Record<SudokuValue, Cell[]>
+      )
+    ).map(([candidate, cells]) => ({
+      candidate: Number(candidate) as SudokuValue,
+      cells,
+    }));
+  }
+
+  // Assigns the single candidates to their respective cells
+  private assignSingleCandidates(
+    sudoku: Sudoku,
+    cellCandidates: CellCandidates[]
+  ): void {
+    cellCandidates
+      .filter(({ candidates }) => candidates.length === 1)
+      .forEach(({ candidates, cell: [row, col] }) => {
+        sudoku[row][col] = candidates[0];
+      });
+
+    this.getCandidateCells(cellCandidates)
+      .filter(({ cells }) => cells.length === 1)
+      .forEach(({ candidate, cells }) => {
+        cells.forEach(([row, col]) => {
+          sudoku[row][col] = candidate;
+        });
+      });
+  }
+
+  private computeEmptyCells(sudoku: Sudoku): number {
+    return sudoku.flatMap(v => v).filter(v => v == null).length;
+  }
+
+  private compileCandidatesDict(sudoku: Sudoku): SudokuCandidatesDict {
+    const cellCandidates: SudokuCandidatesDict = {};
+
+    // Rule out possible values for empty cells,
+    // i.e. numbers that already appear in the same row, column, or block
+    sudoku.forEach((row, rowIndex) => {
+      row.forEach((value, colIndex) => {
+        if (value != null) return;
+
+        let candidates = [...this.targetSet];
+
+        // Identify block
+        const blockNum: number = this.targetSet.find(num =>
+          this.blockIndices[num].some(
+            ([r, c]) => r === rowIndex && c === colIndex
+          )
+        )!;
+
+        // Check and remove candidates that are already in the block
+        this.blockIndices[blockNum].forEach(([row, col]) => {
+          const value = sudoku[row][col];
+          if (value != null)
+            candidates = candidates.filter(num => num !== value);
+        });
+
+        // Check and remove candidates that are already in the row
+        this.targetSet.forEach((_, col) => {
+          const value = sudoku[rowIndex][col];
+          if (value != null)
+            candidates = candidates.filter(num => num !== value);
+        });
+
+        // Check and remove candidates that are already in the column
+        this.targetSet.forEach((_, row) => {
+          const value = sudoku[row][colIndex];
+          if (value != null)
+            candidates = candidates.filter(num => num !== value);
+        });
+
+        // Set candidates
+        cellCandidates[this.stringifyKey(rowIndex, colIndex)] = candidates;
+      });
+    });
+
+    return cellCandidates;
+  }
+
+  private compileCandidatesList(sudoku: Sudoku): CellCandidate[] {
+    return Object.entries(this.compileCandidatesDict(sudoku))
+      .map(([key, candidates]) => ({
+        candidates,
+        cell: this.parseKey(key as CellKey),
+      }))
+      .sort((a, b) => a.candidates.length - b.candidates.length)
+      .flatMap(c =>
+        c.candidates.map(candidate => ({ candidate, cell: c.cell }))
+      );
+  }
+
+  private stringifyKey(row: number, col: number): CellKey {
+    return `${row}-${col}`;
+  }
+
+  private parseKey(key: CellKey): Cell {
+    const [row, col] = key.split('-');
+    return [Number(row), Number(col)];
+  }
+}
+
+/*
+// Iterate through the candidates
+    const keys = Object.keys(this.iterator).sort();
+    let solutionFound = false;
+    let iterations = 0;
+
+    const bumpIndex = (currKeyIndex: number = 0) => {
+      const currKey = keys[currKeyIndex];
+      const { candidates, currIndex } = this.iterator[currKey];
+
+      if (currIndex < candidates.length - 1) {
+        this.iterator[currKey].currIndex += 1;
+      } else {
+        for (let i = currKeyIndex; i >= 0; i--) {
+          this.iterator[keys[i]].currIndex = 0;
+        }
+        if (currKeyIndex + 1 < keys.length) {
+          bumpIndex(currKeyIndex + 1);
+        }
+      }
+    };
+
+    while (!solutionFound && iterations < Infinity) {
+      // Assign canditates
+      Object.entries(this.iterator).forEach(
+        ([keyStr, { candidates, currIndex }]) => {
+          const [rowIndex, colIndex] = this.parseKey(keyStr);
+          const candidate = candidates[currIndex];
+          this.solvedSudoku[rowIndex][colIndex] = candidate;
+        }
+      );
+
+      solutionFound = new SudokuValidator(this.solvedSudoku).validate()
+        .isFinished;
+      bumpIndex();
+      iterations++;
+      iterations % 10000 === 0 &&
+        console.log(
+          'iterations',
+          iterations,
+          'INDICES',
+          Object.values(this.iterator).map(i => i.currIndex)
+        );
+    }
+*/

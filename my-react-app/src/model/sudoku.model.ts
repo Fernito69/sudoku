@@ -1,14 +1,14 @@
-export type SudokuValue = number | undefined;
+export type SudokuValue = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 export type SudokuRow = [
-  SudokuValue,
-  SudokuValue,
-  SudokuValue,
-  SudokuValue,
-  SudokuValue,
-  SudokuValue,
-  SudokuValue,
-  SudokuValue,
-  SudokuValue,
+  SudokuValue | undefined,
+  SudokuValue | undefined,
+  SudokuValue | undefined,
+  SudokuValue | undefined,
+  SudokuValue | undefined,
+  SudokuValue | undefined,
+  SudokuValue | undefined,
+  SudokuValue | undefined,
+  SudokuValue | undefined,
 ];
 export type Sudoku = [
   SudokuRow,
@@ -22,32 +22,60 @@ export type Sudoku = [
   SudokuRow,
 ];
 
-export enum ErrorColor {
+export enum ErrorClassname {
   BlockCell = 'bg-red-500 text-white',
   LineCell = 'bg-orange-500 text-white',
   Block = 'bg-red-300',
 }
 
-export enum ValidColor {
+export enum ValidClassname {
   Block = 'bg-green-200',
   Line = 'bg-green-300',
 }
 
+// TODO: Row and Col should be numbers from 0 to 8
+type Row = number;
+type Col = number;
+export type Cell = [Row, Col];
+
 export interface Error {
-  row: number;
-  col: number;
-  color: ErrorColor;
+  row: Row;
+  col: Col;
+  className: ErrorClassname;
 }
 
-export type Cell = [number, number];
-
+/***********/
+// Validator
 export interface SudokuValidation {
   errors: Error[];
   isFinished: boolean;
-  getCellColor: (rowIndex: number, colIndex: number) => string | undefined;
+  getCellClassname: (rowIndex: Row, colIndex: Col) => string | undefined;
 }
 
+/***********/
+// "DB" Model
 export interface DbSudoku {
   key: string;
   sudoku: Sudoku;
 }
+
+/***********/
+// Solver
+export type CellKey = `${Row}-${Col}`;
+export type SudokuCandidatesDict = Record<CellKey, SudokuValue[]>;
+export type CellCandidates = {
+  cell: Cell;
+  candidates: SudokuValue[];
+};
+export type CellCandidate = {
+  cell: Cell;
+  candidate: SudokuValue;
+};
+export type CandidateCells = {
+  candidate: SudokuValue;
+  cells: Cell[];
+};
+export type AssignedCount = {
+  assigned: number;
+  value: SudokuValue;
+};
