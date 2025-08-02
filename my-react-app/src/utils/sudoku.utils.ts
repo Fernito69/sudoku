@@ -407,13 +407,15 @@ export class SudokuSolver {
       this.partiallySolvedSudoku = this.cloneDeep(sudoku);
     }
 
-    // Begin trying candidates
+    // Begin trying the remaining candidates in the partially solved sudoku until
+    // we find the definitive solution
     while (true) {
       const cellCandidates: CellCandidate[] = this.compileCandidatesList(
         this.partiallySolvedSudoku
       );
       sudoku = this.cloneDeep(this.partiallySolvedSudoku);
 
+      // Pick the first candidate that hasn't been tested yet
       const { candidate, cell } =
         cellCandidates.find(
           c =>
@@ -425,19 +427,28 @@ export class SudokuSolver {
             )
         ) ?? {};
 
-      if (!candidate || !cell) return this.bestAttempt || sudoku;
+      // If all candidates have been tested, break the loop
+      if (!candidate || !cell) break;
 
+      // Assign the candidate to the cell and add it to the list of tested candidates
       sudoku[cell[0]][cell[1]] = candidate;
       this.testedCandidates.push({ cell, candidate });
 
+      // Try to solve the sudoku with the new candidate
       const newAttempt = this.solve(
         sudoku,
         this.computeEmptyCells(sudoku),
         depth
       );
 
-      if (
-        new SudokuValidator(newAttempt).validate().errors.length === 0 &&
+      const { errors, isFinished } = new SudokuValidator(newAttempt).validate();
+
+      // If the sudoku is solved, return it. Otherwise, save the best attempt and continue
+      if (isFinished) {
+        this.logging && console.log('Solved!');
+        return newAttempt;
+      } else if (
+        errors.length === 0 &&
         (this.bestAttempt == null ||
           this.computeEmptyCells(newAttempt) <
             this.computeEmptyCells(this.bestAttempt))
@@ -445,6 +456,8 @@ export class SudokuSolver {
         this.bestAttempt = this.cloneDeep(newAttempt);
       }
     }
+    console.log('No solution found', this.bestAttempt, sudoku);
+    return this.bestAttempt || sudoku;
   }
 
   private cloneDeep(sudoku: Sudoku): Sudoku {
@@ -604,49 +617,3 @@ export class SudokuSolver {
     return [Number(row), Number(col)];
   }
 }
-
-/*
-// Iterate through the candidates
-    const keys = Object.keys(this.iterator).sort();
-    let solutionFound = false;
-    let iterations = 0;
-
-    const bumpIndex = (currKeyIndex: number = 0) => {
-      const currKey = keys[currKeyIndex];
-      const { candidates, currIndex } = this.iterator[currKey];
-
-      if (currIndex < candidates.length - 1) {
-        this.iterator[currKey].currIndex += 1;
-      } else {
-        for (let i = currKeyIndex; i >= 0; i--) {
-          this.iterator[keys[i]].currIndex = 0;
-        }
-        if (currKeyIndex + 1 < keys.length) {
-          bumpIndex(currKeyIndex + 1);
-        }
-      }
-    };
-
-    while (!solutionFound && iterations < Infinity) {
-      // Assign canditates
-      Object.entries(this.iterator).forEach(
-        ([keyStr, { candidates, currIndex }]) => {
-          const [rowIndex, colIndex] = this.parseKey(keyStr);
-          const candidate = candidates[currIndex];
-          this.solvedSudoku[rowIndex][colIndex] = candidate;
-        }
-      );
-
-      solutionFound = new SudokuValidator(this.solvedSudoku).validate()
-        .isFinished;
-      bumpIndex();
-      iterations++;
-      iterations % 10000 === 0 &&
-        console.log(
-          'iterations',
-          iterations,
-          'INDICES',
-          Object.values(this.iterator).map(i => i.currIndex)
-        );
-    }
-*/
