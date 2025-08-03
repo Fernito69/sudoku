@@ -93,7 +93,7 @@ export function SudokuControls({ setSudoku, sudoku, setInitialSudoku }: Props) {
   return (
     <div className="flex flex-row items-center mt-2 py-2 px-2 bg-gray-300 gap-2 border border-gray-300 rounded w-fit">
       <Button onClick={handleReset}>Reset</Button>
-      <Button className="bg-green-600" onClick={handleSolve}>
+      <Button className="bg-green-600 hover:bg-green-700" onClick={handleSolve}>
         Solve
       </Button>
       <Select

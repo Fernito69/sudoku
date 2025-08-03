@@ -41,6 +41,8 @@ export const BASE_SUDOKU: Sudoku = [
   BASE_ROW,
 ];
 
+export const TARGET_SET: SudokuValue[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
 // Indices that represent each block in the whole 81x81 grid
 export const BLOCK_INDICES: Record<number, Cell[]> = {
   1: [
@@ -151,13 +153,12 @@ export const copy = <T>(element: T): T => {
 
 export class SudokuValidator {
   private readonly sudoku: Sudoku;
-  private readonly targetSet: SudokuValue[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-  private readonly blockIndices: Record<number, Cell[]>;
+  private readonly targetSet: SudokuValue[] = TARGET_SET;
+  private readonly blockIndices: Record<number, Cell[]> = BLOCK_INDICES;
   private errors: Error[] = [];
 
   constructor(sudoku: Sudoku) {
     this.sudoku = copy(sudoku);
-    this.blockIndices = BLOCK_INDICES;
   }
 
   public validate(): SudokuValidation {
@@ -324,7 +325,7 @@ export class SudokuValidator {
 
   private validateBlock(block: number) {
     try {
-      const blockValues = Object.values(BLOCK_INDICES[block]).map(
+      const blockValues = Object.values(this.blockIndices[block]).map(
         ([row, col]) => this.sudoku[row][col]
       );
       const count = blockValues.reduce(
@@ -361,7 +362,7 @@ export class SudokuValidator {
 /***************************************************/
 export class SudokuSolver {
   private readonly initialSudoku: Sudoku;
-  private readonly targetSet: SudokuValue[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  private readonly targetSet: SudokuValue[] = TARGET_SET;
   private readonly blockIndices: Record<number, Cell[]> = BLOCK_INDICES;
   private readonly logging: boolean = true;
 
@@ -377,8 +378,8 @@ export class SudokuSolver {
     initialSudoku: Sudoku = this.initialSudoku,
     iteration: number = 0
   ): Sudoku {
-    let sudoku = copy(initialSudoku);
-    const currEmptyCells = this.computeEmptyCells(sudoku);
+    let sudoku: Sudoku = copy(initialSudoku);
+    const currEmptyCells: number = this.computeEmptyCells(sudoku);
 
     /*********************************/
     // 1. Assign all single candidates
@@ -420,7 +421,7 @@ export class SudokuSolver {
 
     // If there are still empty cells, solve recursively until we can't
     // find any more single candidates
-    const newEmptyCells = this.computeEmptyCells(sudoku);
+    const newEmptyCells: number = this.computeEmptyCells(sudoku);
     if (newEmptyCells < currEmptyCells) {
       return this.solve(sudoku, iteration);
     }
@@ -461,7 +462,7 @@ export class SudokuSolver {
       this.testedCandidates.push({ cell, candidate });
 
       // Try to solve the sudoku with the new candidate
-      const newAttempt = this.solve(sudoku, iteration);
+      const newAttempt: Sudoku = this.solve(sudoku, iteration);
 
       // If the sudoku is solved, return it. Otherwise, continue testing with the next candidate
       if (new SudokuValidator(newAttempt).validate().isSolved) {
@@ -623,7 +624,6 @@ export class SudokuSolver {
   }
 
   private parseKey(key: CellKey): Cell {
-    const [row, col] = key.split('-');
-    return [Number(row), Number(col)];
+    return key.split('-').map(Number) as Cell;
   }
 }
