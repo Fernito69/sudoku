@@ -1,6 +1,6 @@
 import { deleteSudoku, getSudokus, saveSudoku } from '@/data/sudoku.service';
-import type { DbSudoku, Sudoku } from '@/model/sudoku.model';
-import { BASE_SUDOKU, SudokuSolver } from '@/utils/sudoku.utils';
+import type { DbSudoku, Sudoku, SudokuValue } from '@/model/sudoku.model';
+import { BASE_SUDOKU, SudokuSolver, copy } from '@/utils/sudoku.utils';
 import { Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Select from 'react-select';
@@ -45,7 +45,33 @@ export function SudokuControls({ setSudoku, sudoku, setInitialSudoku }: Props) {
     updateList();
   };
 
+  const handleSaveFromString = () => {
+    const sudokuStr = window.prompt('Enter a Sudoku string:');
+    // Check with regex that it only contains numbers from 0 to 9
+    if (!sudokuStr || !sudokuStr.match(/^[0-9]{81}$/))
+      return alert('Invalid input');
+
+    let sudoku = copy(BASE_SUDOKU);
+    for (let i = 0; i < 81; i++) {
+      const row = Math.floor(i / 9);
+      const col = i % 9;
+      const value = sudokuStr[i];
+      if (value === '.') continue;
+      sudoku[row][col] =
+        value === '0' ? undefined : (Number(value) as SudokuValue);
+    }
+
+    const name = saveSudoku(sudoku);
+    if (!name) return;
+    const newOption = { value: sudoku, label: name };
+    setSelectedOption(newOption);
+    setSudoku(sudoku);
+    setInitialSudoku(sudoku);
+    updateList();
+  };
+
   const handleDelete = () => {
+    setSudoku(BASE_SUDOKU);
     deleteSudoku(selectedOption?.label ?? '');
     setSelectedOption(null);
     updateList();
@@ -85,6 +111,12 @@ export function SudokuControls({ setSudoku, sudoku, setInitialSudoku }: Props) {
         onClick={handleSave}
       >
         Save
+      </Button>
+      <Button
+        className="bg-orange-500 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded"
+        onClick={handleSaveFromString}
+      >
+        Import
       </Button>
       <Button
         size={'icon'}

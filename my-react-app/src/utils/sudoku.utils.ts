@@ -12,6 +12,8 @@ import {
   type SudokuValidation,
   type SudokuValue,
   type CellCandidate,
+  type Row,
+  type Col,
 } from '@/model/sudoku.model';
 
 // Defaults
@@ -143,6 +145,10 @@ export const BLOCK_INDICES: Record<number, Cell[]> = {
 };
 
 /***************************************************/
+export const copy = <T>(element: T): T => {
+  return JSON.parse(JSON.stringify(element)) as T;
+};
+
 export class SudokuValidator {
   private readonly sudoku: Sudoku;
   private readonly targetSet: SudokuValue[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -150,7 +156,7 @@ export class SudokuValidator {
   private errors: Error[] = [];
 
   constructor(sudoku: Sudoku) {
-    this.sudoku = JSON.parse(JSON.stringify(sudoku));
+    this.sudoku = copy(sudoku);
     this.blockIndices = BLOCK_INDICES;
   }
 
@@ -159,12 +165,12 @@ export class SudokuValidator {
 
     return {
       errors: this.computeErrors(),
-      isFinished: this.isFinished(),
+      isSolved: this.isSolved(),
       getCellClassname: this.getCellClassname.bind(this),
     };
   }
 
-  private isFinished(): boolean {
+  private isSolved(): boolean {
     return (
       this.sudoku.every(row => row.every(v => v != null)) &&
       this.errors.length === 0
@@ -249,7 +255,7 @@ export class SudokuValidator {
 
       if (colIsFilled && !colHasErrors) {
         validCells.push(
-          ...(this.targetSet.map((_, row) => [row, index]) as Cell[])
+          ...(this.targetSet.map((_, row) => [row, index]) satisfies Cell[])
         );
       }
 
@@ -259,7 +265,7 @@ export class SudokuValidator {
 
       if (rowIsFilled && !rowHasErrors) {
         validCells.push(
-          ...(this.targetSet.map((_, col) => [index, col]) as Cell[])
+          ...(this.targetSet.map((_, col) => [index, col]) satisfies Cell[])
         );
       }
     });
@@ -332,12 +338,12 @@ export class SudokuValidator {
         .map(([num]) => Number(num));
 
       if (repeatedValues.length > 0) {
-        // Color block cells
+        // Color all cells of a block that has errors
         this.blockIndices[block].forEach(([row, col]) => {
           this.errors.push({ row, col, className: ErrorClassname.Block });
         });
 
-        // Color repeated cells
+        // Highlight repeated cells in the block
         this.blockIndices[block].forEach(([row, col]) => {
           const cellValue = this.sudoku[row][col];
           if (cellValue == null) return;
@@ -364,18 +370,35 @@ export class SudokuSolver {
   private testedCandidates: CellCandidate[] = [];
 
   constructor(sudoku: Sudoku) {
-    this.initialSudoku = this.cloneDeep(sudoku);
+    this.initialSudoku = copy(sudoku);
   }
 
   public solve(
     initialSudoku: Sudoku = this.initialSudoku,
-    currEmptyCells: number = this.computeEmptyCells(initialSudoku),
-    depth: number = 0
+    iteration: number = 0
   ): Sudoku {
-    this.logging &&
-      console.log('iteration:', ++depth, 'Curr empty cells:', currEmptyCells);
+    let sudoku = copy(initialSudoku);
+    const currEmptyCells = this.computeEmptyCells(sudoku);
 
-    let sudoku = this.cloneDeep(initialSudoku);
+    /*********************************/
+    // 1. Assign all single candidates
+
+    // If we are just starting, reset all the variables
+    if (iteration === 0) {
+      this.bestAttempt = copy(sudoku);
+      this.partiallySolvedSudoku = null;
+    }
+    // Otherwise, store the best attempt so far
+    else if (
+      currEmptyCells < this.computeEmptyCells(this.bestAttempt!) &&
+      new SudokuValidator(sudoku).validate().errors.length === 0
+    ) {
+      this.bestAttempt = copy(sudoku);
+    }
+
+    iteration++;
+    this.logging &&
+      console.log('iteration:', iteration, 'Curr empty cells:', currEmptyCells);
 
     // Compute all candidates per block, row and column and
     // assign all single candidates found
@@ -390,7 +413,7 @@ export class SudokuSolver {
     });
 
     // If the Sudoku is solved, return it
-    if (new SudokuValidator(sudoku).validate().isFinished) {
+    if (new SudokuValidator(sudoku).validate().isSolved) {
       this.logging && console.log('Solved!');
       return sudoku;
     }
@@ -399,21 +422,24 @@ export class SudokuSolver {
     // find any more single candidates
     const newEmptyCells = this.computeEmptyCells(sudoku);
     if (newEmptyCells < currEmptyCells) {
-      return this.solve(sudoku, newEmptyCells, depth);
+      return this.solve(sudoku, iteration);
     }
+
+    /************************************/
+    // 2. Test the rest of the candidates
 
     // Save a state of the sudoku with all single candidates assigned
     if (this.partiallySolvedSudoku == null) {
-      this.partiallySolvedSudoku = this.cloneDeep(sudoku);
+      this.partiallySolvedSudoku = copy(sudoku);
     }
 
-    // Begin trying the remaining candidates in the partially solved sudoku until
+    // Test the remaining candidates in the partially solved sudoku until
     // we find the definitive solution
     while (true) {
       const cellCandidates: CellCandidate[] = this.compileCandidatesList(
         this.partiallySolvedSudoku
       );
-      sudoku = this.cloneDeep(this.partiallySolvedSudoku);
+      sudoku = copy(this.partiallySolvedSudoku);
 
       // Pick the first candidate that hasn't been tested yet
       const { candidate, cell } =
@@ -435,33 +461,17 @@ export class SudokuSolver {
       this.testedCandidates.push({ cell, candidate });
 
       // Try to solve the sudoku with the new candidate
-      const newAttempt = this.solve(
-        sudoku,
-        this.computeEmptyCells(sudoku),
-        depth
-      );
+      const newAttempt = this.solve(sudoku, iteration);
 
-      const { errors, isFinished } = new SudokuValidator(newAttempt).validate();
-
-      // If the sudoku is solved, return it. Otherwise, save the best attempt and continue
-      if (isFinished) {
-        this.logging && console.log('Solved!');
+      // If the sudoku is solved, return it. Otherwise, continue testing with the next candidate
+      if (new SudokuValidator(newAttempt).validate().isSolved) {
         return newAttempt;
-      } else if (
-        errors.length === 0 &&
-        (this.bestAttempt == null ||
-          this.computeEmptyCells(newAttempt) <
-            this.computeEmptyCells(this.bestAttempt))
-      ) {
-        this.bestAttempt = this.cloneDeep(newAttempt);
       }
     }
-    console.log('No solution found', this.bestAttempt, sudoku);
-    return this.bestAttempt || sudoku;
-  }
 
-  private cloneDeep(sudoku: Sudoku): Sudoku {
-    return JSON.parse(JSON.stringify(sudoku)) as Sudoku;
+    // If after all the candidates have been tested, no solution was found, return the best attempt
+    this.logging && console.log('No solution found. Returning best attempt.');
+    return this.bestAttempt || sudoku;
   }
 
   private computeBlockCandidates(
@@ -472,9 +482,9 @@ export class SudokuSolver {
       this.compileCandidatesDict(sudoku);
 
     return this.blockIndices[blockNum]
-      .map(([row, col]) => ({
-        candidates: cellCandidates[this.stringifyKey(row, col)],
-        cell: [row, col] satisfies Cell,
+      .map(cell => ({
+        candidates: cellCandidates[this.stringifyKey(...cell)],
+        cell,
       }))
       .filter(v => v.candidates != null);
   }
@@ -608,7 +618,7 @@ export class SudokuSolver {
       );
   }
 
-  private stringifyKey(row: number, col: number): CellKey {
+  private stringifyKey(row: Row, col: Col): CellKey {
     return `${row}-${col}`;
   }
 

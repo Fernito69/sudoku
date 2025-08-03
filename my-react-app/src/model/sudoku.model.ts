@@ -34,8 +34,8 @@ export enum ValidClassname {
 }
 
 // TODO: Row and Col should be numbers from 0 to 8
-type Row = number;
-type Col = number;
+export type Row = number;
+export type Col = number;
 export type Cell = [Row, Col];
 
 export interface Error {
@@ -48,7 +48,7 @@ export interface Error {
 // Validator
 export interface SudokuValidation {
   errors: Error[];
-  isFinished: boolean;
+  isSolved: boolean;
   getCellClassname: (rowIndex: Row, colIndex: Col) => string | undefined;
 }
 
@@ -74,8 +74,4 @@ export type CellCandidate = {
 export type CandidateCells = {
   candidate: SudokuValue;
   cells: Cell[];
-};
-export type AssignedCount = {
-  assigned: number;
-  value: SudokuValue;
 };
