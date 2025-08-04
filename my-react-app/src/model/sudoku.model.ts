@@ -62,7 +62,7 @@ export interface DbSudoku {
 /***********/
 // Solver
 export type CellKey = `${Row}-${Col}`;
-export type SudokuCandidatesDict = Record<CellKey, SudokuValue[]>;
+export type CandidatesDict = Record<CellKey, SudokuValue[]>;
 export type CellCandidates = {
   cell: Cell;
   candidates: SudokuValue[];

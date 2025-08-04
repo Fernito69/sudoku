@@ -7,7 +7,7 @@ import {
   type CellKey,
   type Error,
   type Sudoku,
-  type SudokuCandidatesDict,
+  type CandidatesDict,
   type SudokuRow,
   type SudokuValidation,
   type SudokuValue,
@@ -397,7 +397,9 @@ export class SudokuSolver {
       this.bestAttempt = copy(sudoku);
     }
 
+    // Bump the iteration counter
     iteration++;
+
     this.logging &&
       console.log('iteration:', iteration, 'Curr empty cells:', currEmptyCells);
 
@@ -479,8 +481,7 @@ export class SudokuSolver {
     sudoku: Sudoku,
     blockNum: number
   ): CellCandidates[] {
-    const cellCandidates: SudokuCandidatesDict =
-      this.compileCandidatesDict(sudoku);
+    const cellCandidates: CandidatesDict = this.compileCandidatesDict(sudoku);
 
     return this.blockIndices[blockNum]
       .map(cell => ({
@@ -491,8 +492,7 @@ export class SudokuSolver {
   }
 
   private computeRowCandidates(sudoku: Sudoku, row: number): CellCandidates[] {
-    const cellCandidates: SudokuCandidatesDict =
-      this.compileCandidatesDict(sudoku);
+    const cellCandidates: CandidatesDict = this.compileCandidatesDict(sudoku);
 
     return this.targetSet
       .map((_, col) => ({
@@ -503,8 +503,7 @@ export class SudokuSolver {
   }
 
   private computeColCandidates(sudoku: Sudoku, col: number): CellCandidates[] {
-    const cellCandidates: SudokuCandidatesDict =
-      this.compileCandidatesDict(sudoku);
+    const cellCandidates: CandidatesDict = this.compileCandidatesDict(sudoku);
 
     return this.targetSet
       .map((_, row) => ({
@@ -550,9 +549,8 @@ export class SudokuSolver {
     this.getCandidateCells(cellCandidates)
       .filter(({ cells }) => cells.length === 1)
       .forEach(({ candidate, cells }) => {
-        cells.forEach(([row, col]) => {
-          sudoku[row][col] = candidate;
-        });
+        const [row, col] = cells[0];
+        sudoku[row][col] = candidate;
       });
   }
 
@@ -560,8 +558,8 @@ export class SudokuSolver {
     return sudoku.flatMap(v => v).filter(v => v == null).length;
   }
 
-  private compileCandidatesDict(sudoku: Sudoku): SudokuCandidatesDict {
-    const cellCandidates: SudokuCandidatesDict = {};
+  private compileCandidatesDict(sudoku: Sudoku): CandidatesDict {
+    const cellCandidates: CandidatesDict = {};
 
     // Rule out possible values for empty cells,
     // i.e. numbers that already appear in the same row, column, or block
@@ -572,8 +570,8 @@ export class SudokuSolver {
         let candidates = [...this.targetSet];
 
         // Identify block
-        const blockNum: number = this.targetSet.find(num =>
-          this.blockIndices[num].some(
+        const blockNum: number = this.targetSet.find(blockNum =>
+          this.blockIndices[blockNum].some(
             ([r, c]) => r === rowIndex && c === colIndex
           )
         )!;

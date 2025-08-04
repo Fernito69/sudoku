@@ -11,7 +11,8 @@ export function getSudokus(): DbSudoku[] {
           key: key.replace(SAVED_SUDOKU_PREFIX, ''),
           sudoku: JSON.parse(localStorage.getItem(key) as string),
         }) as DbSudoku
-    );
+    )
+    .sort((a, b) => a.key.localeCompare(b.key));
   return sudokus;
 }
 
