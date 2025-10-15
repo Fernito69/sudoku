@@ -14,6 +14,7 @@ import {
   type CellCandidate,
   type Row,
   type Col,
+  type SudokuValuesCount,
 } from '@/model/sudoku.model';
 
 // Defaults
@@ -41,10 +42,14 @@ export const BASE_SUDOKU: Sudoku = [
   BASE_ROW,
 ];
 
+// Indices
+const X: 0 = 0;
+const Y: 1 = 1;
+
 export const TARGET_SET: SudokuValue[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 // Indices that represent each block in the whole 81x81 grid
-export const BLOCK_INDICES: Record<number, Cell[]> = {
+export const BLOCK_INDICES: Record<SudokuValue, Cell[]> = {
   1: [
     [0, 0],
     [0, 1],
@@ -154,7 +159,7 @@ export const copy = <T>(element: T): T => {
 export class SudokuValidator {
   private readonly sudoku: Sudoku;
   private readonly targetSet: SudokuValue[] = TARGET_SET;
-  private readonly blockIndices: Record<number, Cell[]> = BLOCK_INDICES;
+  private readonly blockIndices: Record<SudokuValue, Cell[]> = BLOCK_INDICES;
   private errors: Error[] = [];
 
   constructor(sudoku: Sudoku) {
@@ -167,7 +172,8 @@ export class SudokuValidator {
     return {
       errors: this.computeErrors(),
       isSolved: this.isSolved(),
-      getCellClassname: this.getCellClassname.bind(this),
+      getCellClassname: (rowIndex, colIndex) =>
+        this.getCellClassname(rowIndex, colIndex),
     };
   }
 
@@ -182,8 +188,8 @@ export class SudokuValidator {
     this.errors = [];
 
     // Populate the errors array
-    for (const [index, num] of this.targetSet.entries()) {
-      this.validateBlock(num);
+    for (const [index, blockNumber] of this.targetSet.entries()) {
+      this.validateBlock(blockNumber);
       this.validateRow(index);
       this.validateCol(index);
     }
@@ -206,7 +212,7 @@ export class SudokuValidator {
     if (cellIsValidBlock) return ValidClassname.Block;
 
     const cellErrors = this.errors.filter(
-      e => e.row === rowIndex && e.col === colIndex
+      e => e.rowIndex === rowIndex && e.colIndex === colIndex
     );
 
     const blockCellError = cellErrors.some(
@@ -235,7 +241,7 @@ export class SudokuValidator {
       );
 
       const blockHasErrors: boolean = indices.some(([row, col]) =>
-        this.errors.some(e => e.row === row && e.col === col)
+        this.errors.some(e => e.rowIndex === row && e.colIndex === col)
       );
 
       if (blockIsFilled && !blockHasErrors) {
@@ -252,7 +258,7 @@ export class SudokuValidator {
     this.targetSet.forEach((_, index) => {
       // check cols
       const colIsFilled = this.sudoku.every(row => row[index] != null);
-      const colHasErrors = this.errors.some(e => e.col === index);
+      const colHasErrors = this.errors.some(e => e.colIndex === index);
 
       if (colIsFilled && !colHasErrors) {
         validCells.push(
@@ -262,7 +268,7 @@ export class SudokuValidator {
 
       // check rows
       const rowIsFilled = this.sudoku[index].every(val => val != null);
-      const rowHasErrors = this.errors.some(e => e.row === index);
+      const rowHasErrors = this.errors.some(e => e.rowIndex === index);
 
       if (rowIsFilled && !rowHasErrors) {
         validCells.push(
@@ -274,48 +280,30 @@ export class SudokuValidator {
     return validCells;
   }
 
-  private validateRow(row: number) {
-    const count = this.sudoku[row].reduce(
-      (acc, v) => (v == null ? acc : { ...acc, [v]: acc[v] ? acc[v] + 1 : 1 }),
-      {} as Record<number, number>
-    );
-    const repeatedValues = Object.entries(count)
+  private static getRepeatedValuesFromCount(
+    count: SudokuValuesCount
+  ): SudokuValue[] {
+    return Object.entries(count)
       .filter(([_, count]) => count > 1)
-      .map(([num]) => Number(num));
-
-    if (repeatedValues.length > 0) {
-      this.sudoku[row].forEach((_, col) => {
-        const cellValue = this.sudoku[row][col];
-        if (cellValue == null) return;
-        if (repeatedValues.includes(cellValue)) {
-          this.errors.push({ row, col, className: ErrorClassname.LineCell });
-        }
-      });
-    }
+      .map(([num]) => Number(num) as SudokuValue);
   }
 
-  private validateCol(col: number) {
-    const count = this.sudoku.reduce(
-      (acc, row) => {
-        const cellValue = row[col];
-        if (cellValue == null) return acc;
-        return { ...acc, [cellValue]: acc[cellValue] ? acc[cellValue] + 1 : 1 };
-      },
-      {} as Record<number, number>
+  private validateRow(rowIndex: number) {
+    const count: SudokuValuesCount = this.sudoku[rowIndex].reduce(
+      (acc, v) => (v == null ? acc : { ...acc, [v]: acc[v] ? acc[v] + 1 : 1 }),
+      {} as SudokuValuesCount
     );
-
-    const repeatedValues = Object.entries(count)
-      .filter(([_, count]) => count > 1)
-      .map(([num]) => Number(num));
+    const repeatedValues: SudokuValue[] =
+      SudokuValidator.getRepeatedValuesFromCount(count);
 
     if (repeatedValues.length > 0) {
-      this.sudoku.forEach((row, rowIndex) => {
-        const cellValue = row[col];
+      this.sudoku[rowIndex].forEach((_, colIndex) => {
+        const cellValue = this.sudoku[rowIndex][colIndex];
         if (cellValue == null) return;
         if (repeatedValues.includes(cellValue)) {
           this.errors.push({
-            row: rowIndex,
-            col,
+            rowIndex,
+            colIndex,
             className: ErrorClassname.LineCell,
           });
         }
@@ -323,33 +311,66 @@ export class SudokuValidator {
     }
   }
 
-  private validateBlock(block: number) {
+  private validateCol(colIndex: number) {
+    const count: SudokuValuesCount = this.sudoku.reduce((acc, row) => {
+      const cellValue = row[colIndex];
+      if (cellValue == null) return acc;
+      return { ...acc, [cellValue]: acc[cellValue] ? acc[cellValue] + 1 : 1 };
+    }, {} as SudokuValuesCount);
+
+    const repeatedValues: SudokuValue[] =
+      SudokuValidator.getRepeatedValuesFromCount(count);
+
+    if (repeatedValues.length > 0) {
+      this.sudoku.forEach((row, rowIndex) => {
+        const cellValue = row[colIndex];
+        if (cellValue == null) return;
+        if (repeatedValues.includes(cellValue)) {
+          this.errors.push({
+            rowIndex,
+            colIndex,
+            className: ErrorClassname.LineCell,
+          });
+        }
+      });
+    }
+  }
+
+  private validateBlock(blockNumber: SudokuValue) {
     try {
-      const blockValues = Object.values(this.blockIndices[block]).map(
-        ([row, col]) => this.sudoku[row][col]
-      );
-      const count = blockValues.reduce(
+      const blockValues: (SudokuValue | undefined)[] = Object.values(
+        this.blockIndices[blockNumber]
+      ).map(([row, col]) => this.sudoku[row][col]);
+
+      const count: SudokuValuesCount = blockValues.reduce(
         (acc, v) =>
           v == null ? acc : { ...acc, [v]: acc[v] ? acc[v] + 1 : 1 },
-        {} as Record<number, number>
+        {} as SudokuValuesCount
       );
 
-      const repeatedValues = Object.entries(count)
-        .filter(([_, count]) => count > 1)
-        .map(([num]) => Number(num));
+      const repeatedValues: number[] =
+        SudokuValidator.getRepeatedValuesFromCount(count);
 
       if (repeatedValues.length > 0) {
         // Color all cells of a block that has errors
-        this.blockIndices[block].forEach(([row, col]) => {
-          this.errors.push({ row, col, className: ErrorClassname.Block });
+        this.blockIndices[blockNumber].forEach(([rowIndex, colIndex]) => {
+          this.errors.push({
+            rowIndex,
+            colIndex,
+            className: ErrorClassname.Block,
+          });
         });
 
         // Highlight repeated cells in the block
-        this.blockIndices[block].forEach(([row, col]) => {
-          const cellValue = this.sudoku[row][col];
+        this.blockIndices[blockNumber].forEach(([rowIndex, colIndex]) => {
+          const cellValue = this.sudoku[rowIndex][colIndex];
           if (cellValue == null) return;
           if (repeatedValues.includes(cellValue)) {
-            this.errors.push({ row, col, className: ErrorClassname.BlockCell });
+            this.errors.push({
+              rowIndex,
+              colIndex,
+              className: ErrorClassname.BlockCell,
+            });
           }
         });
       }
@@ -450,8 +471,8 @@ export class SudokuSolver {
           c =>
             !this.testedCandidates.some(
               t =>
-                t.cell[0] === c.cell[0] &&
-                t.cell[1] === c.cell[1] &&
+                t.cell[X] === c.cell[X] &&
+                t.cell[Y] === c.cell[Y] &&
                 t.candidate === c.candidate
             )
         ) ?? {};
@@ -460,7 +481,7 @@ export class SudokuSolver {
       if (!candidate || !cell) break;
 
       // Assign the candidate to the cell and add it to the list of tested candidates
-      sudoku[cell[0]][cell[1]] = candidate;
+      sudoku[cell[X]][cell[Y]] = candidate;
       this.testedCandidates.push({ cell, candidate });
 
       // Try to solve the sudoku with the new candidate
@@ -541,15 +562,15 @@ export class SudokuSolver {
     cellCandidates: CellCandidates[]
   ): void {
     cellCandidates
-      .filter(({ candidates }) => candidates.length === 1)
-      .forEach(({ candidates, cell: [row, col] }) => {
-        sudoku[row][col] = candidates[0];
+      .filter(({ candidates }) => candidates.length === 1) // Get single candidates
+      .forEach(({ candidates: [candidate], cell: [row, col] }) => {
+        sudoku[row][col] = candidate; // Assign the single candidate to the cell
       });
 
     this.getCandidateCells(cellCandidates)
       .filter(({ cells }) => cells.length === 1)
-      .forEach(({ candidate, cells }) => {
-        const [row, col] = cells[0];
+      .forEach(({ candidate, cells: [candidateCell] }) => {
+        const [row, col] = candidateCell;
         sudoku[row][col] = candidate;
       });
   }
@@ -584,15 +605,15 @@ export class SudokuSolver {
         });
 
         // Check and remove candidates that are already in the row
-        this.targetSet.forEach((_, col) => {
-          const value = sudoku[rowIndex][col];
+        this.targetSet.forEach((_, colIndex) => {
+          const value = sudoku[rowIndex][colIndex];
           if (value != null)
             candidates = candidates.filter(num => num !== value);
         });
 
         // Check and remove candidates that are already in the column
-        this.targetSet.forEach((_, row) => {
-          const value = sudoku[row][colIndex];
+        this.targetSet.forEach((_, rowIndex) => {
+          const value = sudoku[rowIndex][colIndex];
           if (value != null)
             candidates = candidates.filter(num => num !== value);
         });

@@ -39,8 +39,8 @@ export type Col = number;
 export type Cell = [Row, Col];
 
 export interface Error {
-  row: Row;
-  col: Col;
+  rowIndex: Row;
+  colIndex: Col;
   className: ErrorClassname;
 }
 
@@ -75,3 +75,8 @@ export type CandidateCells = {
   candidate: SudokuValue;
   cells: Cell[];
 };
+
+/***********/
+// Misc
+
+export type SudokuValuesCount = { [v in SudokuValue]: number };
